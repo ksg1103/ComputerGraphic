@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>20205104 강승규 - Bump Mapping</title>
+    </head>
+    <body>
+        <a href="final.html">
+            <button>Back to Mainpage</button>
+        </a>
+        <script type="x-shader/x-vertex" id = "vertexShader">
+            void main(){
+                gl_PointSize = 5.0;
+                gl_Position = vec4(position,1.0);
+
+            }
+        </script>
+        <script type="x-shader/x-fragment" id = "fragmentShader">
+            void main(){
+                gl_FragColor = vec4(1.0, 0.0, 1.0, 1.0);
+            }
+        </script>
+        <div style =" text-align:center;">
+            <input type="radio" id="directional" name="lighting" checked>Default
+            <input type="radio" id="point" name="lighting"> Only Leg
+            <input type="radio" id="spotlight" name="lighting"> Only Table body
+            <input type="radio" id="all" name="lighting"> ALL
+        </div>
+        <script type="x-shader/x-vertex" id="phongTexVS">
+            attribute vec4 vColor;
+            varying vec4 fColor;
+            varying vec3 fNormal, fViewPos;
+            varying vec2 fTexCoord;
+            
+
+            void main() {
+                
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+        
+                fColor = vColor;
+                fNormal = normalize(normalMatrix * normal);
+                fViewPos = (modelViewMatrix * vec4(position,1.0)).xyz;
+                fTexCoord = uv;
+            }
+        </script>
+        
+        <script type="x-shader/x-fragment" id="phongTexFS">
+            precision mediump float;
+        
+            uniform vec3 kAtten, spotDir;
+            uniform vec4 lightSrc, lightAmbient, lightDiffuse, lightSpecular;
+            uniform vec4 matAmbient, matDiffuse, matSpecular;
+            uniform float matShininess, spotExp;
+            uniform bool isSpotlight;
+            
+            varying vec4 fColor;
+            varying vec3 fNormal, fViewPos;
+            varying vec2 fTexCoord;
+            uniform sampler2D texImage, texImage2;
+        
+            void main() {
+                vec4 ambient = lightAmbient * matAmbient;
+                
+                vec3 N = normalize(fNormal);
+                vec3 V = normalize(fViewPos);
+        
+               
+        
+                if (lightSrc.w == 0.0) { // directional light
+                    vec3 L = normalize(lightSrc.xyz);
+                    float kd = max(dot(L, N), 0.0);
+                    vec4 diffuse = kd * lightDiffuse * matDiffuse;
+        
+                    vec3 H = normalize(L - V);
+                    float ks = pow(max(dot(N, H), 0.0), matShininess);
+                    vec4 specular = ks * lightSpecular * matSpecular;
+        
+                    gl_FragColor = (ambient + diffuse + specular) * texture2D(texImage, fTexCoord) ;
+                    } 
+                else { // point light
+                    vec3 lightVec = lightSrc.xyz - fViewPos;
+                    vec3 L = normalize(lightVec);
+                    float kd = max(dot(L, N), 0.0);
+                    vec4 diffuse = kd * lightDiffuse * matDiffuse;
+                    //vec4 diffuse = kd * lightDiffuse * fColor;
+
+                    vec3 H = normalize(L - V);
+                    float ks = pow(max(dot(N, H), 0.0), matShininess);
+                    vec4 specular = ks * lightSpecular * matSpecular;
+        
+                    float d = length(lightVec);
+                    float atten = 1.0 / (kAtten[0] + kAtten[1] * d + kAtten[2] * d * d);
+                    if (isSpotlight) { // spotlight
+                        float spotDot = max(dot(normalize(spotDir), -L), 0.0);
+                        if (spotDot > 0.0) 
+                            atten *= pow(spotDot, spotExp);
+                        else 
+                            atten = 0.0;
+                    }
+                    gl_FragColor = (ambient + atten * (diffuse + specular)) *texture2D(texImage, fTexCoord);
+                }
+                //gl_FragColor = texture2D(texImage, fTexCoord) * fColor;
+                //gl_FragColor = texture2D(texImage, fTexCoord) * texture2D(texImage2, fTexCoord);
+                gl_FragColor.a = 1.0;
+            }
+        </script>
+        
+        <script type="x-shader/x-vertex" id="phongVS">
+            varying vec3 fNormal, fViewDir;
+            varying vec4 fPos;
+        
+            void main() {
+                fPos = modelViewMatrix * vec4(position, 1.0);
+                gl_Position =  projectionMatrix * modelViewMatrix * vec4(position,1.0);
+        
+                
+                fNormal = normalize(normalMatrix * normal);
+                fViewDir = normalize(cameraPosition - fPos.xyz);
+            }
+        </script>
+        
+        <script type="x-shader/x-fragment" id="phongFS">
+            precision mediump float;
+        
+            uniform vec3 kAtten, spotDir;
+            uniform vec4 lightSrc, lightAmbient, lightDiffuse, lightSpecular;
+            uniform vec4 matAmbient, matDiffuse, matSpecular;
+            uniform float matShininess, spotExp;
+            uniform bool isSpotlight;
+        
+            varying vec3 fNormal, fViewDir;
+            varying vec4 fPos;
+        
+            void main() {
+                vec4 ambient = lightAmbient * matAmbient;
+                vec3 N = normalize(fNormal);
+                vec3 V = normalize(fViewDir);
+        
+                vec3 L, H;
+                float atten = 1.0;
+        
+                if (lightSrc.w == 0.0) { // directional light
+                    L = normalize(lightSrc.xyz);
+                    float kd = max(dot(L, N), 0.0);
+                    vec4 diffuse = kd * lightDiffuse * matDiffuse;
+        
+                    H = normalize(L + V);
+                    float ks = pow(max(dot(N, H), 0.0), matShininess);
+                    vec4 specular = ks * lightSpecular * matSpecular;
+        
+                    gl_FragColor = ambient + diffuse + specular;
+                    } 
+               
+                
+                gl_FragColor.a = 1.0;
+            }
+        </script>
+        <script type="x-shader/x-vertex" id="colorVS">
+            void main(){
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+            }
+        </script>
+        <script type="x-shader/x-fragment" id="colorFS">
+            precision mediump float;
+            uniform vec4 uColor;
+
+            void main() {
+                gl_FragColor = uColor;
+            }
+        </script>
+        <script type="importmap">
+            {
+                "imports": {
+                    "three": "https://unpkg.com/three/build/three.module.js",
+                    "three/addons/": "https://unpkg.com/three/examples/jsm/"
+                }
+            }
+        </script>
+        <input type="file" id="fileInput" accept="image/*" style="display: none;">
+        <button id="uploadButton">Upload Image</button>
+        <script type="module">
+
+            import * as THREE from 'three';
+            import {TrackballControls} from 'three/addons/controls/TrackballControls.js';
+            
+            
+            let scene, camera, renderer,controls,mesh,mesh2;
+            var lightSrc = [-1.0, 1.0, 0.0, 0.0];
+            var isSpotlight = false;
+
+            init();
+            animate();
+
+            function init(){
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color(0xafafaf);
+
+                const viewLength =2;
+                if(window.innerWidth > window.innerHeight){
+                var ratio = viewLength * window.innerWidth / window.innerHeight;
+                camera = new THREE.OrthographicCamera(-ratio, ratio, viewLength, -viewLength, 0, 1000);
+            }
+            else {
+                var ratio = viewLength * window.innerHeight / window.innerwidth;
+                camera = new THREE.OrthographicCamera(-viewLength, viewLength, ratio, -ratio, 0, 1000);
+            }
+            camera.position.z =2;
+
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            controls = new TrackballControls(camera,renderer.domElement);
+            
+            const cube_pos = [
+                new THREE.Vector3(-1.5, -0.05, -1),
+                new THREE.Vector3(1.5, -0.05, -1),
+                new THREE.Vector3(1.5, 0.05, -1),
+                new THREE.Vector3(-1.5, 0.05, -1),
+                new THREE.Vector3(-1.5, -0.05, 1),
+                new THREE.Vector3(1.5, -0.05, 1),
+                new THREE.Vector3(1.5, 0.05, 1),
+                new THREE.Vector3(-1.5, 0.05, 1),
+            ];
+            const cube_pos2 = [
+                new THREE.Vector3(-1.5, -1.05, 0.7),
+                new THREE.Vector3(-1.2, -1.05, 0.7),
+                new THREE.Vector3(-1.2, -0.05, 0.7),
+                new THREE.Vector3(-1.5, -0.05, 0.7),
+                new THREE.Vector3(-1.5, -1.05, 1),
+                new THREE.Vector3(-1.2, -1.05, 1),
+                new THREE.Vector3(-1.2, -0.05, 1),
+                new THREE.Vector3(-1.5, -0.05, 1),
+            ];
+            const cube_pos3 = [
+                new THREE.Vector3(1.2, -1.05, 0.7),
+                new THREE.Vector3(1.5, -1.05, 0.7),
+                new THREE.Vector3(1.5, -0.05, 0.7),
+                new THREE.Vector3(1.2, -0.05, 0.7),
+                new THREE.Vector3(1.2, -1.05, 1),
+                new THREE.Vector3(1.5, -1.05, 1),
+                new THREE.Vector3(1.5, -0.05, 1),
+                new THREE.Vector3(1.2, -0.05, 1),
+            ];
+            const cube_pos4 = [
+                new THREE.Vector3(-1.5, -1.05, -1),
+                new THREE.Vector3(-1.2, -1.05, -1),
+                new THREE.Vector3(-1.2, -0.05, -1),
+                new THREE.Vector3(-1.5, -0.05, -1),
+                new THREE.Vector3(-1.5, -1.05, -0.7),
+                new THREE.Vector3(-1.2, -1.05, -0.7),
+                new THREE.Vector3(-1.2, -0.05, -0.7),
+                new THREE.Vector3(-1.5, -0.05, -0.7),
+            ];
+            const cube_pos5 = [
+                new THREE.Vector3(1.2, -1.05, -1),
+                new THREE.Vector3(1.5, -1.05, -1),
+                new THREE.Vector3(1.5, -0.05, -1),
+                new THREE.Vector3(1.2, -0.05, -1),
+                new THREE.Vector3(1.2, -1.05, -0.7),
+                new THREE.Vector3(1.5, -1.05, -0.7),
+                new THREE.Vector3(1.5, -0.05, -0.7),
+                new THREE.Vector3(1.2, -0.05, -0.7),
+            ];
+            const cube_normal = [
+                new THREE.Vector3(-0.57735, -0.57735, -0.57735),
+                new THREE.Vector3(0.57735, -0.57735, -0.57735),
+                new THREE.Vector3(0.57735, 0.57735, -0.57735),
+                new THREE.Vector3(-0.57735, 0.57735, -0.57735),
+                new THREE.Vector3(-0.57735, -0.57735, 0.57735),
+                new THREE.Vector3(0.57735, -0.57735, 0.57735),
+                new THREE.Vector3(0.57735, 0.57735, 0.57735),
+                new THREE.Vector3(-0.57735, 0.57735, 0.57735),
+            ];
+            
+            const cube_color = [
+                new THREE.Vector4(0, 0, 0, 1),
+                new THREE.Vector4(1, 0, 0, 1),
+                new THREE.Vector4(1, 1, 0, 1),
+                new THREE.Vector4(0, 1, 0, 1),
+                new THREE.Vector4(0, 0, 1, 1),
+                new THREE.Vector4(1, 0, 1, 1),
+                new THREE.Vector4(1, 1, 1, 1),
+                new THREE.Vector4(0, 1, 1, 1),
+            ];
+            const cube_uv = [
+                new THREE.Vector2(0,0),
+                new THREE.Vector2(0,1),
+                new THREE.Vector2(1, 1),
+                new THREE.Vector2(1,0),
+            ];
+            
+            let vPosition =[],vPosition2 = [], vNormal = [], vTangent = [], vTexCoord = [], vColor = [];
+            let vPosition3 = [], vPosition4 = [];
+            texQuad(1, 0, 3, 2);
+            texQuad(2, 6, 5, 1);
+            texQuad(3, 7, 6, 2);
+            texQuad(4, 7, 3, 0);
+            texQuad(5, 4, 0, 1);
+            texQuad(7, 4, 5, 6);
+            //vPosition 1= normal vPosition 2= 1tx, 1 n, vPositon 3 = 1n, 1tx, vPosition 4 = 2 t
+            function texQuad(a, b, c, d){
+                //two triangles (a,b,c) and (a,c,d);
+                vPosition.push(cube_pos[a]);
+                vNormal.push(cube_normal[a]);
+                vTexCoord.push(cube_uv[0]);
+                vColor.push(cube_color[a]);
+
+                vPosition.push(cube_pos[b]);
+                vNormal.push(cube_normal[b]);
+                vTexCoord.push(cube_uv[1]);
+                vColor.push(cube_color[a]);
+
+                vPosition.push(cube_pos[c]);
+                vNormal.push(cube_normal[c]);
+                vTexCoord.push(cube_uv[2]);
+                vColor.push(cube_color[a]);
+
+                vPosition.push(cube_pos[a]);
+                vNormal.push(cube_normal[a]);
+                vTexCoord.push(cube_uv[0]);
+                vColor.push(cube_color[a]);
+
+                vPosition.push(cube_pos[c]);
+                vNormal.push(cube_normal[c]);
+                vTexCoord.push(cube_uv[2]);
+                vColor.push(cube_color[a]);
+
+                vPosition.push(cube_pos[d]);
+                vNormal.push(cube_normal[d]);
+                vTexCoord.push(cube_uv[3]);
+                vColor.push(cube_color[a]);
+
+                //
+                vPosition3.push(cube_pos[a]);
+                vNormal.push(cube_normal[a]);
+                vTexCoord.push(cube_uv[0]);
+                vColor.push(cube_color[a]);
+
+                vPosition3.push(cube_pos[b]);
+                vNormal.push(cube_normal[b]);
+                vTexCoord.push(cube_uv[1]);
+                vColor.push(cube_color[a]);
+
+                vPosition3.push(cube_pos[c]);
+                vNormal.push(cube_normal[c]);
+                vTexCoord.push(cube_uv[2]);
+                vColor.push(cube_color[a]);
+
+                vPosition3.push(cube_pos[a]);
+                vNormal.push(cube_normal[a]);
+                vTexCoord.push(cube_uv[0]);
+                vColor.push(cube_color[a]);
+
+                vPosition3.push(cube_pos[c]);
+                vNormal.push(cube_normal[c]);
+                vTexCoord.push(cube_uv[2]);
+                vColor.push(cube_color[a]);
+
+                vPosition3.push(cube_pos[d]);
+                vNormal.push(cube_normal[d]);
+                vTexCoord.push(cube_uv[3]);
+                vColor.push(cube_color[a]);
+                //
+                //
+                vPosition2.push(cube_pos2[a]);
+                vNormal.push(cube_normal[a]);
+                vTexCoord.push(cube_uv[0]);
+                vColor.push(cube_color[a]);
+
+                vPosition2.push(cube_pos2[b]);
+                vNormal.push(cube_normal[b]);
+                vTexCoord.push(cube_uv[1]);
+                vColor.push(cube_color[a]);
+
+                vPosition2.push(cube_pos2[c]);
+                vNormal.push(cube_normal[c]);
+                vTexCoord.push(cube_uv[2]);
+                vColor.push(cube_color[a]);
+
+                vPosition2.push(cube_pos2[a]);
+                vNormal.push(cube_normal[a]);
+                vTexCoord.push(cube_uv[0]);
+                vColor.push(cube_color[a]);
+
+                vPosition2.push(cube_pos2[c]);
+                vNormal.push(cube_normal[c]);
+                vTexCoord.push(cube_uv[2]);
+                vColor.push(cube_color[a]);
+
+                vPosition2.push(cube_pos2[d]);
+                vNormal.push(cube_normal[d]);
+                vTexCoord.push(cube_uv[3]);
+                vColor.push(cube_color[a]);
+                //
+                vPosition2.push(cube_pos3[a]);
+                vNormal.push(cube_normal[a]);
+                vTexCoord.push(cube_uv[0]);
+                vColor.push(cube_color[a]);
+
+                vPosition2.push(cube_pos3[b]);
+                vNormal.push(cube_normal[b]);
+                vTexCoord.push(cube_uv[1]);
+                vColor.push(cube_color[a]);
+
+                vPosition2.push(cube_pos3[c]);
+                vNormal.push(cube_normal[c]);
+                vTexCoord.push(cube_uv[2]);
+                vColor.push(cube_color[a]);
+
+                vPosition2.push(cube_pos3[a]);
+                vNormal.push(cube_normal[a]);
+                vTexCoord.push(cube_uv[0]);
+                vColor.push(cube_color[a]);
+
+                vPosition2.push(cube_pos3[c]);
+                vNormal.push(cube_normal[c]);
+                vTexCoord.push(cube_uv[2]);
+                vColor.push(cube_color[a]);
+
+                vPosition2.push(cube_pos3[d]);
+                vNormal.push(cube_normal[d]);
+                vTexCoord.push(cube_uv[3]);
+                vColor.push(cube_color[a]);
+                //
+                vPosition2.push(cube_pos4[a]);
+                vNormal.push(cube_normal[a]);
+                vTexCoord.push(cube_uv[0]);
+                vColor.push(cube_color[a]);
+
+                vPosition2.push(cube_pos4[b]);
+                vNormal.push(cube_normal[b]);
+                vTexCoord.push(cube_uv[1]);
+                vColor.push(cube_color[a]);
+
+                vPosition2.push(cube_pos4[c]);
+                vNormal.push(cube_normal[c]);
+                vTexCoord.push(cube_uv[2]);
+                vColor.push(cube_color[a]);
+
+                vPosition2.push(cube_pos4[a]);
+                vNormal.push(cube_normal[a]);
+                vTexCoord.push(cube_uv[0]);
+                vColor.push(cube_color[a]);
+
+                vPosition2.push(cube_pos4[c]);
+                vNormal.push(cube_normal[c]);
+                vTexCoord.push(cube_uv[2]);
+                vColor.push(cube_color[a]);
+
+                vPosition2.push(cube_pos4[d]);
+                vNormal.push(cube_normal[d]);
+                vTexCoord.push(cube_uv[3]);
+                vColor.push(cube_color[a]);
+                //
+                
+                vPosition2.push(cube_pos5[a]);
+                vNormal.push(cube_normal[a]);
+                vTexCoord.push(cube_uv[0]);
+                vColor.push(cube_color[a]);
+
+                vPosition2.push(cube_pos5[b]);
+                vNormal.push(cube_normal[b]);
+                vTexCoord.push(cube_uv[1]);
+                vColor.push(cube_color[a]);
+
+                vPosition2.push(cube_pos5[c]);
+                vNormal.push(cube_normal[c]);
+                vTexCoord.push(cube_uv[2]);
+                vColor.push(cube_color[a]);
+
+                vPosition2.push(cube_pos5[a]);
+                vNormal.push(cube_normal[a]);
+                vTexCoord.push(cube_uv[0]);
+                vColor.push(cube_color[a]);
+
+                vPosition2.push(cube_pos5[c]);
+                vNormal.push(cube_normal[c]);
+                vTexCoord.push(cube_uv[2]);
+                vColor.push(cube_color[a]);
+
+                vPosition2.push(cube_pos5[d]);
+                vNormal.push(cube_normal[d]);
+                vTexCoord.push(cube_uv[3]);
+                vColor.push(cube_color[a]);
+                //
+                //
+
+                
+            }
+
+            var vertices = new Float32Array(vPosition.length *3);
+            var index = 0;
+            for( var i=0; i<vPosition.length; i++) {
+                vertices[index++] = vPosition[i].x;
+                vertices[index++] = vPosition[i].y;
+                vertices[index++] = vPosition[i].z;
+            }
+            var vertices2 = new Float32Array(vPosition2.length *3);
+            index = 0;
+            for( var i=0; i<vPosition2.length; i++) {
+                vertices2[index++] = vPosition2[i].x;
+                vertices2[index++] = vPosition2[i].y;
+                vertices2[index++] = vPosition2[i].z;
+            }
+
+            var normals = new Float32Array(vNormal.length *3);
+            index = 0;
+            for( var i=0; i<vNormal.length; i++) {
+                normals[index++] = vNormal[i].x;
+                normals[index++] = vNormal[i].y;
+                normals[index++] = vNormal[i].z;
+            }
+            
+            var uvs = new Float32Array(vTexCoord.length *2);
+            index = 0;
+            for( var i=0; i<vTexCoord.length; i++) {
+                uvs[index++] = vTexCoord[i].x;
+                uvs[index++] = vTexCoord[i].y;
+                
+            }
+
+            var colors = new Float32Array(vPosition.length *4);
+            index = 0;
+            for( var i=0; i<vColor.length; i++) {
+                colors[index++] = vColor[i].x;
+                colors[index++] = vColor[i].y;
+                colors[index++] = vColor[i].z;
+                colors[index++] = vColor[i].w;
+            }
+            
+
+            const geometry = new THREE.BufferGeometry();
+            //table body 
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices,3));
+            geometry.setAttribute('normal',new THREE.Float32BufferAttribute(normals,3));
+            geometry.setAttribute('vColor', new THREE.Float32BufferAttribute(colors,4));
+            geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs,2));
+
+            const geometry2= new THREE.BufferGeometry();
+            //table leg 
+            geometry2.setAttribute('position', new THREE.Float32BufferAttribute(vertices2,3));
+            geometry2.setAttribute('normal',new THREE.Float32BufferAttribute(normals,3));
+            geometry2.setAttribute('vColor', new THREE.Float32BufferAttribute(colors,4));
+            geometry2.setAttribute('uv', new THREE.Float32BufferAttribute(uvs,2));
+            
+           
+            const uploadButton = document.getElementById('uploadButton');
+            const fileInput = document.getElementById('fileInput');
+            uploadButton.addEventListener('click', () => {
+                fileInput.click();
+            });
+
+            // Handle file input change
+            const textureLoader = new THREE.TextureLoader();
+            const initialTexture = textureLoader.load('images/brick_color.bmp');
+            fileInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const newTexture = textureLoader.load(e.target.result);
+                        material.uniforms.texImage.value = newTexture;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            //const texture = new THREE.TextureLoader().load('images/brick_color.bmp');
+            //const texture = new THREE.TextureLoader().load('file');
+            initialTexture.wrapS = THREE.RepeatWrapping;
+            initialTexture.wrapT = THREE.RepeatWrapping;
+            //texture.magFilter = THREE.NearstFilter;
+            //texture.minFilter = THREE.NearstFilter;
+            
+            const material = new THREE.ShaderMaterial({
+                uniforms:{
+                kAtten:{value:[0.1, 0.1, 0.1]}, 
+                spotDir: { value: [0.0, -1.0, -1.0] }, 
+                lightSrc:{ value: lightSrc},
+                lightAmbient:{value:[0.0, 0.0, 0.0, 1.0]},
+                lightDiffuse:{value:[1.0, 1.0, 1.0, 1.0]}, 
+                lightSpecular:{ value:[1.0, 1.0, 1.0, 1.0]}, 
+                matAmbient:{ value:[1.0, 1.0, 1.0, 1.0]},
+                matDiffuse:{ value:[1.0, 1.0, 1.0, 1.0]},
+                matSpecular:{value:[1.0, 1.0, 1.0, 1.0]},
+                matShininess:{value: 100}, 
+                spotExp:{value: 5.0},
+                isSpotlight:{ value: isSpotlight },
+                texImage: { value: initialTexture},
+                
+               },
+                vertexShader: document.getElementById("phongTexVS").textContent,
+                fragmentShader: document.getElementById("phongTexFS").textContent
+            });
+            const material2 = new THREE.ShaderMaterial({
+               uniforms:{
+                kAtten:{ value:[0.1, 0.1, 0.1]},
+                spotDir:{ value:[0.0, -1.0, -1.0]},
+                //lightSrc:{value:[0.0, 1.0, 0.0, 0.0]},
+                lightSrc:{ value: lightSrc},
+                lightAmbient:{value:[0.5, 0.5, 0.5, 1.0]},
+                lightDiffuse:{value:[1.0, 1.0, 1.0, 1.0]},
+                lightSpecular:{ value:[1.0, 1.0, 1.0, 1.0]},
+                matAmbient:{ value: [1.0, 1.0, 1.0, 1.0]},
+                matDiffuse:{ value:[1.0,1.0,1.0,1.0]},
+                matSpecular:{value:[1.0, 1.0, 1.0, 1.0]},
+                matShininess:{value: 100},
+                spotExp:{ value: 5.0},
+                isSpotlight: {value: isSpotlight},
+               },
+                vertexShader: document.getElementById("phongVS").textContent,
+                fragmentShader: document.getElementById("phongFS").textContent
+            });
+
+
+            mesh = new THREE.Mesh(geometry, material2);
+            scene.add(mesh);
+            //mesh = body
+            mesh2 = new THREE.Mesh(geometry2, material2);
+            scene.add(mesh2);
+            //mesh2 = leg
+
+            /*mesh2 = new THREE.Mesh(geometry2, material2);
+            scene.add(mesh2);*/
+
+
+
+            window.addEventListener('resize', onWindowResize);
+            const lighting = document.getElementsByName("lighting");
+            lighting.forEach((radio)=>{
+                radio.addEventListener("change",(event)=>{
+                    if(document.getElementById("point").checked){
+                        scene.remove(mesh);
+                        scene.remove(mesh2);
+                        mesh = new THREE.Mesh(geometry2, material);
+                        mesh2 = new THREE.Mesh(geometry, material2);
+                        scene.add(mesh);
+                        scene.add(mesh2);
+                    }
+                    else if(document.getElementById("spotlight").checked){
+                        scene.remove(mesh);
+                        scene.remove(mesh2);
+                        mesh = new THREE.Mesh(geometry, material);
+                        mesh2 = new THREE.Mesh(geometry2, material2);
+                        scene.add(mesh);
+                        scene.add(mesh2);
+                    }
+                     else if(document.getElementById("all").checked){
+                        scene.remove(mesh);
+                        scene.remove(mesh2);
+                        mesh = new THREE.Mesh(geometry, material);
+                        mesh2 = new THREE.Mesh(geometry2, material);
+                        scene.add(mesh);
+                        scene.add(mesh2);
+                    }                
+                    else {
+                        scene.remove(mesh);
+                        scene.remove(mesh2);
+                        mesh = new THREE.Mesh(geometry, material2);
+                        scene.add(mesh);
+                        mesh2 = new THREE.Mesh(geometry2, material2);
+                        scene.add(mesh2);
+                    }
+                   
+                    mesh.material.uniforms.lightSrc.value = lightSrc;
+                    mesh.material.uniforms.isSpotlight.value = isSpotlight;
+                });
+            });
+            const groundMaterial = new THREE.ShaderMaterial({
+                uniforms: {
+                    uColor: {value:[0.8, 0.8, 0.8, 1]},
+                },
+                vertexShader: document.getElementById("colorVS").textContent,
+                fragmentShader: document.getElementById("colorFS").textContent
+                
+            });
+            
+        }
+           
+        function onWindowResize(){
+            const viewLength = 2;
+            if(window.innerWidth > window.innerHeight){
+                var ratio = viewLength * window.innerWidth / window.innerHeight;
+                camera = new THREE.OrthographicCamera(-ratio, ratio, viewLength, -viewLength, 0, 1000);
+            }
+            else{
+                var ratio = viewLength * window.innerHeight / window.innerWidth;
+                camera = new THREE.OrthographicCamera(-viewLength,viewLength, ratio, -ratio, 0 ,1000);
+            }
+           camera.position.z =2;
+           camera.updateProjectionMatrix();
+
+            renderer.setSize(window.innerWidth,window.innerHeight);
+
+            controls.dispose();
+            controls = new TrackballControls(camera,renderer.domElement);
+            
+        }
+
+        function animate(){
+            requestAnimationFrame(animate);
+
+            controls.update();
+
+            renderer.render(scene, camera);
+        }
+        </script>
+    </body>
+</html>
